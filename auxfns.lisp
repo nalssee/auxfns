@@ -3,17 +3,19 @@
   (:export :with-gensyms
 	   :once-only
 	   :nlet
+
+	   :range
 	   ;; :\#\[
 	   
 	   :lcomp
 	   ;; :\[
 
-	   :<-
 	   :alambda
 	   :rec
 
 	   :mappend
 
+	   ;; Lazy list
 	   :delay
 	   :force
 	   :make-pipe
@@ -21,9 +23,9 @@
 	   :head
 	   :tail
 	   :pipe-elt
-	   :integers
-	   :enumerate
-	   :filter
+	   ;; :integers
+	   ;; :enumerate
+	   :filter-pipe
 	   :map-pipe
 
 	   ;; :deflex
@@ -36,26 +38,42 @@
 
 	   :for*/list
 
+	   :aif
+	   :aif2
 	   :acond
+	   :acond2
+	   :it
 
 	   :group
 	   :file-string
 	   :numbering
 	   :split-list
 	   :str2file
-	   :range
 
-
-	   
 	   :def
 
+	   
 	   :deflexical
 	   :defc
+
+	   :=defun
+	   :=lambda
+	   :=bind
+	   :=values
+	   :=funcall
+	   :=apply
+	   :toplevel-k
+	   :_cont_
+
+	   :amb
+	   :amb-bind
+	   :init-paths
+	   :backtrack
+	   :bag-of
+	   :amb-let*
+	   :only-when
+	   
 	   ))
-
-
-
-
 
 
 
@@ -92,8 +110,7 @@
   (apply #'append (apply #'mapcar fn lsts)))
 
 
-
-
+;; Replacing it with range
 ;; (set-macro-character #\] (get-macro-character #\)))
 
 ;; (set-dispatch-macro-character
@@ -104,7 +121,6 @@
 ;;        (let ((i (gensym)))
 ;; 	 `(loop for ,i from ,(first args) to ,(second args)
 ;; 	     by (or ,(third args) 1) collect ,i)))))
-
 
 
 
@@ -135,7 +151,7 @@
 (defmacro make-pipe (head tail)
   `(cons ,head #'(lambda () ,tail)))
 
-(defconstant empty-pipe nil)
+(defvar empty-pipe nil)
 (defun head (pipe) (first pipe))
 
 (defun tail (pipe)
@@ -148,25 +164,26 @@
       (head pipe)
       (pipe-elt (tail pipe) (1- i))))
 
-(defun integers (&optional (start 0) end)
-  (if (or (null end) (<= start end))
-      (make-pipe start (integers (1+ start) end))
-      nil))
+;; (defun integers (&optional (start 0) end)
+;;   (if (or (null end) (<= start end))
+;;       (make-pipe start (integers (1+ start) end))
+;;       nil))
 
 
-(defun enumerate (pipe &key count key (result pipe))
-  (if (or (eq pipe empty-pipe) (eql count 0))
-      result
-      (progn
-        (unless (null key) (funcall key (head pipe)))
-        (enumerate (tail pipe) :count (if count (1- count))
-                   :key key :result result))))
+;; (defun enumerate (pipe &key count key (result pipe))
+;;   (if (or (eq pipe empty-pipe) (eql count 0))
+;;       result
+;;       (progn
+;;         (unless (null key) (funcall key (head pipe)))
+;;         (enumerate (tail pipe) :count (if count (1- count))
+;;                    :key key :result result))))
 
-(defun filter (pred pipe)
+
+(defun filter-pipe (pred pipe)
   (if (funcall pred (head pipe))
       (make-pipe (head pipe)
-                 (filter pred (tail pipe)))
-      (filter pred (tail pipe))))
+                 (filter-pipe pred (tail pipe)))
+      (filter-pipe pred (tail pipe))))
 
 ;; (defun sieve (pipe)
 ;;   (make-pipe (head pipe)
@@ -201,12 +218,6 @@
 
 
 
-;; Defining lexical variable.
-;; (defmacro deflex (var val)
-;;   (let ((storage (gensym)))
-;;     `(progn
-;;        (setf (symbol-value ',storage) ,val)
-;;        (define-symbol-macro ,var (symbol-value ',storage)))))
 
 
 (defun memoize (fn)
@@ -255,6 +266,16 @@
          (nreverse ,result)))))
 
 
+
+(defmacro aif (test-form then-form &optional else-form)
+  `(let ((it ,test-form))
+     (if it ,then-form ,else-form)))
+
+(defmacro aif2 (test &optional then else)
+  (let ((win (gensym)))
+    `(multiple-value-bind (it ,win) ,test
+       (if (or it ,win) ,then ,else))))
+
 ;;; On lisp page 191, chapter 14.
 ;;; Anaphoric macro: acond
 (defmacro acond (&rest clauses)
@@ -267,13 +288,28 @@
 	       (let ((it ,sym)) ,@(cdr cl1))
 	       (acond ,@(cdr clauses)))))))
 
-(defun take (xs n)
-  (butlast xs (- (length xs) n)))
+
+(defmacro acond2 (&rest clauses)
+  (if (null clauses)
+      nil
+      (let ((cl1 (car clauses))
+            (val (gensym))
+            (win (gensym)))
+        `(multiple-value-bind (,val ,win) ,(car cl1)
+           (if (or ,val ,win)
+               (let ((it ,val)) ,@(cdr cl1))
+               (acond2 ,@(cdr clauses)))))))
 
 
 
-(defun group (xs &key (test #'equal) (n nil))
-  (let* ((cnt (1- (length xs)))
+
+
+;; 
+;; (group '(1 2 3 4 5) :n 2)
+(defun group (xs &key (test #'eql) (key #'identity)
+		   (n nil))
+  (let* ((len-1 (1- (length xs)))
+	 (cnt len-1)
 	 (vresult (make-array (1+ cnt) :initial-element nil)))
     (and
      xs
@@ -281,22 +317,30 @@
 	 (labels ((iter (result remaining)
 		    (if (<= (length remaining) n)
 			(reverse (cons remaining result))
-			(iter (cons (take remaining n) result)
+			(iter (cons (subseq remaining 0 n) result)
 			      (nthcdr n remaining)))))
 	   (iter '() xs))
 	 (progn
 	   (let ((rxs (reverse xs)))
 	     (push (car rxs) (svref vresult cnt))
 	     (loop for x in (cdr rxs) do
-		  (if (funcall test x (car (svref vresult cnt)))
+		  (if (funcall test
+			       (funcall key x)
+			       (funcall key (car (svref vresult cnt))))
 		      (push x (svref vresult cnt))
 		      (progn (decf cnt)
 			     (push x (svref vresult cnt))))))
 	   (let ((result '()))
-	     (loop for i from (1- (length xs)) downto cnt do
+	     (loop for i from len-1 downto cnt do
 		  (push (svref vresult i) result))
 	     result))))))
 
+
+;; (defun file-string (path)
+;;   (with-open-file (stream path)
+;;     (let ((data (make-string (file-length stream))))
+;;       (read-sequence data stream)
+;;       data)))
 
 
 ;; whole file to a string
@@ -318,12 +362,6 @@
 		     (list x start)))))
      (nreverse count-list))))
 
-
-;; (defun file-string (path)
-;;   (with-open-file (stream path)
-;;     (let ((data (make-string (file-length stream))))
-;;       (read-sequence data stream)
-;;       data)))
 
 (defun str2file (x file)
   (with-open-file (s file
@@ -432,10 +470,11 @@
 
 (defun function-clause-p (clause)
   (consp (car clause)))
-
 ;; ============================================
 ;; End of def
 ;; ============================================
+
+
 
 
 
@@ -452,8 +491,6 @@
 ;;      (declare (ignore char))
 ;;      (let ((expr (read-delimited-list #\] stream t)))
 ;;        (apply #'comprehend (rbp expr)))))
-
-
 
 
 ;; (lcomp ((x (range 1 11))
@@ -499,26 +536,8 @@
 
 
 ;; http://blog.rongarret.info/2009/08/global-variables-done-right.html
-
-
-
-;; Global variables done right
-;; If you've read my Idiot's Guide to Special Variables you will already know that I am not a big fan of the design of Common Lisp's global variables system. There are (at least)
-;;  three problems with CL's design:
-
-;; 1. There are no global lexicals.
-
-;; 2. DEFCONSTANT doesn't actually define a constant, it defines a global variable with the less-than-useful property that the consequences of attempting to change its value are undefined. Thus, a conforming implementation of Common Lisp could expand DEFCONSTANT as DEFVAR. (I am, frankly, at a loss to understand why DEFCONSTANT was even included in the language. As far as I can tell there is nothing that you can do in portable CL with DEFCONSTANT that you could not do just as well with DEFINE-SYMBOL-MACRO.)
-
-
-;; 3. There is no way to declare a global variable without also making the name of the variable pervasively special. In other words, once you've created a global variable named X it is no longer possible to write new code that creates lexical bindings for X. It is, of course, still possible for code evaluated before X was declared special to create lexical bindings for X. IMHO this is just insane. The only reason for this design is for backwards compatibility with code written for dynamically scoped dialects of Lisp. Well, guess what, folks. It's 2009. There are no more dynamically scoped dialects of Lisp. (Well, there's eLisp, but it lives safely sequestered in its own world and can be safely ignored by rational people.)
-;;  And if you're still unconvinced that Common Lisp's pervasive special declarations are a bad design, consider the rule that all global variables should have named that are bookended by asterisks. Any time you need to impose a rule like that on your programmers, your language design is broken.
-
-;; Fortunately, the situation is not all that hard to remedy. All that is needed is to implement the hypothetical L-LET and D-LET constructs from the Idiot's Guide, and to provide a way to declare global variables in a way that doesn't make them globally special.
-
-;; Ladies and Gentlegeeks, I give you Global Variables Done Right:
-
-
+;; global variables redefined
+;; deflexical and defc are useful
 (defun get-dynamic-cell (symbol)
   (or (get symbol 'dynamic-cell)
       (setf (get symbol 'dynamic-cell)
@@ -548,6 +567,7 @@
   (let* ((vars (mapcar 'first bindings))
 	 (dvars (mapcar 'get-dynamic-cell vars))
 	 (vals (mapcar 'second bindings)))
+
     (dolist (v vars)
       (let ((e (macroexpand v)))
 	(if (or (atom e)
@@ -603,108 +623,121 @@
   "Unconditionally returns the global lexical binding of VAR"
   `(symbol-value ',(get-lexical-cell var)))
 
+;; ==============================================
+;; End of Global Variables Redefined
+;; ==============================================
 
 
 
 
 
-;; The best way to show what this code does is with an example:
+
+
+;;===========================================================
+;;; Continuation Passing Macro
+;;===========================================================
+
+;; Very problematic
+;; (setf _cont_ #'identity)
+(deflexical _cont_ #'identity)
+
+;; define toplevel continuation first
+(defmacro toplevel-k (&optional (fn '(function identity)))
+  `(setf _cont_ ,fn))
 
 
 
+(defmacro =lambda (parms &body body)
+  `#'(lambda (_cont_ ,@parms) ,@body))
 
-;; ? (defc constant1 "Constant value")
+(defmacro =defun (name parms &body body)
+  (let ((f (intern (concatenate 'string
+				"=" (symbol-name name)))))
+    `(progn
+       (defmacro ,name ,parms
+	 `(,',f _cont_ ,,@parms))
+       (defun ,f (_cont_ ,@parms) ,@body))))
 
-;; CONSTANT1
-;; ? (setf constant1 "Can't change a constant")
+(defmacro =bind (parms expr &body body)
+  `(let ((_cont_ #'(lambda ,parms ,@body))) ,expr))
 
-;; > Error: CONSTANT1 is immutable
-;; > While executing: (SETF NON-SETTABLE-VALUE)
-;; , in process Listener (6)
-;; .
-;; > Type cmd-. to abort, cmd-\ for a list of available restarts.
-;; > Type :? for other options.
-;; 1 >
-;; ? (defc constant1 "Can't change a constant value, take 2")
+(defmacro =values (&rest retvals)
+  `(funcall _cont_ ,@retvals))
 
-;; CONSTANT1
-;; ? constant1
-;; "Constant value"
-;; ? (defc constant1 "Can rebind a constant by specifying FORCE-REBIND" t)
+(defmacro =funcall (fn &rest args)
+  `(funcall ,fn _cont_ ,@args))
 
-;; CONSTANT1
-;; ? constant1
-;; "Can rebind a constant by specifying FORCE-REBIND"
-
-;; ? (defv v1 "Global dynamic variable")
-
-;; V1
-;; ? (deflexical l1 "Global lexical variable")
-
-;; L1
-;; ? (defun test1 ()
-;;      (list v1 l1))
-
-;; TEST1
-;; ? (test1)
-
-;; ("Global dynamic variable" "Global lexical variable")
-
-;; ? (let ((v1 1)
-;; 	 (l1 1))
-;;      (list v1 l1 (test1)))
-
-;; (1 1 ("Global dynamic variable" "Global lexical variable"))
-
-;; ? (dlet ((v1 "Dynamic binding 1")
-;; 	  (l1 "Dynamic binding 2"))
-;;      (list v1 l1 (test1)))
-
-;; ("Dynamic binding 1" "Dynamic binding 2" ("Dynamic binding 1" "Global lexical variable"))
-
-;; ? (let ((v1 1))
-;;      (list v1 (dval v1)))
-
-;; (1 "Global dynamic variable")
-
-;; ? (let ((l1 1))
-;;      (list l1 (lval l1)))
-
-;; (1 "Global lexical variable")
+(defmacro =apply (fn &rest args)
+  `(apply ,fn _cont_ ,@args))
 
 
-;; ; Watch this trick!
-;; ? (deflexical v1 "New global lexical binding for what was a dynamic variable")
+;; For nondeterministic search
+(defparameter *paths* nil)
+(defvar failsym '@)
 
-;; V1
-;; ? (defun foo ()
-;;      v1)
+(defun init-paths () (setf *paths* nil))
 
-;; FOO
-;; ? (let ((v1 1))
-;;      (list v1 (dval v1)
-;; 	    (lval v1)
-;; 	     (foo)))
-
-;; (1 "Global dynamic variable" "New global lexical binding for what was a dynamic variable" "New global lexical binding for what was a dynamic variable")
-
-;; ? (dlet ((v1 1))
-;;      v1)
-
-;; > Error: V1 is not a dynamic variable
+;; choose
+(defmacro amb (&rest choices)
+  (if choices
+      `(progn
+	 ,@(mapcar #'(lambda (c)
+		       `(push #'(lambda () ,c) *paths*))
+		   (reverse (cdr choices)))
+	 ,(car choices))
+      '(backtrack)))
 
 
 
+;; choose-bind
+(defmacro amb-bind (var choices &body body)
+  `(ab #'(lambda (,var) ,@body) ,choices))
 
-;; Things to note:
+;; cb
+(defun ab (fn choices)
+  (if choices
+      (progn
+	(if (cdr choices)
+	    (push #'(lambda () (ab fn (cdr choices)))
+		  *paths*))
+	(funcall fn (car choices)))
+      (backtrack)))
 
-;; 1. The design is completely orthogonal. In fact, a single variable can have a local lexical binding, a global lexical binding, and a dynamic binding all at the same time, and all of which are accessible in a single scope. No more pervasive special declarations. (In fact, no more special declarations at all. They are replaced with the DLET macro.)
+(defmacro amb-let* (binds &body body)
+  (if (null (cdr binds))
+      `(amb-bind ,@(first binds)
+	   ,@body)
+      `(amb-bind ,@(first binds)
+	   (amb-let* ,(cdr binds) ,@body))))
 
 
-;; 2. Constants are enforced to be immutable unless this is explicitly overridden by specifying FORCE-REBIND to be true.
+(defmacro only-when (&body exps)
+  (if (null (cddr exps))
+      `(if ,(first exps)
+	   ,(second exps)
+	   (amb))
+      `(if ,(first exps)
+	   (only-when ,@(cdr exps))
+	   (amb))))
 
-;; 3. Because the design is orthogonal, it is actually a design choice whether dynamically binding a global lexical should be an error. There is no reason why this couldn't be allowed to proceed, to create a dynamic binding that could then be accessed (only)
-;;  via the DVAL macro. But I decided that although it's possible to have both global lexical and dynamic bindings for the same variable at the same time, it's probably not a good idea. 
+
+
+;; fail
+(defun backtrack ()
+  (if *paths*
+      (funcall (pop *paths*))
+      failsym))
+
+
+(defmacro bag-of (expr)
+  (with-gensyms (result x)
+    `(let ((,result '()))
+       (=bind (&rest ,x) ,expr
+	 (push (if (null (cdr ,x)) (car ,x) ,x)
+	       ,result)
+	 (backtrack))
+       (=values (nreverse ,result)))))
+
 
 
 
