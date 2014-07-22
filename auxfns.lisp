@@ -25,6 +25,8 @@
 	   :pipe-elt
 	   ;; :integers
 	   ;; :enumerate
+	   :append-pipes
+	   :mappend-pipe
 	   :filter-pipe
 	   :map-pipe
 
