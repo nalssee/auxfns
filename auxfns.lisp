@@ -581,11 +581,11 @@
        (declare (special ,@dvars))
        ,@body)))
 
-
-(defun get-lexical-cell (sym)
-  (or (get sym 'lexical-cell)
-      (setf (get sym 'lexical-cell)
-	    (copy-symbol sym))))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun get-lexical-cell (sym)
+    (or (get sym 'lexical-cell)
+	(setf (get sym 'lexical-cell)
+	      (copy-symbol sym)))))
 
 
 (defun non-settable-value (s)
