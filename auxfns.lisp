@@ -5,10 +5,8 @@
 	   :nlet
 
 	   :range
-	   ;; :\#\[
 	   
 	   :lcomp
-	   ;; :\[
 
 	   :alambda
 	   :rec
@@ -20,25 +18,22 @@
 	   :force
 	   :make-pipe
 	   :empty-pipe
+	   :empty-pipe-p
 	   :head
 	   :tail
 	   :pipe-elt
 	   ;; :integers
 	   ;; :enumerate
-	   :append-pipes
-	   :mappend-pipe
-	   :filter-pipe
-	   :map-pipe
-
-	   ;; :deflex
-
+	   :pipe-append
+	   :pipe-filter
+	   :pipe-map
 
 	   :memoize
+	   :clear-memoize
+	   :curry
 
 	   :minf
 	   :maxf
-
-	   :for*/list
 
 	   :aif
 	   :aif2
@@ -47,13 +42,11 @@
 	   :it
 
 	   :group
-	   :file-string
+	   :file->string
+	   :string->file
 	   :numbering
-	   :split-list
-	   :str2file
-
+	   
 	   :def
-
 	   
 	   :deflexical
 	   :defc
@@ -112,19 +105,6 @@
   (apply #'append (apply #'mapcar fn lsts)))
 
 
-;; Replacing it with range
-;; (set-macro-character #\] (get-macro-character #\)))
-
-;; (set-dispatch-macro-character
-;;  #\# #\[
-;;  #'(lambda (s c1 c2)
-;;      (declare (ignore c1 c2))
-;;      (let ((args (read-delimited-list #\] s t)))
-;;        (let ((i (gensym)))
-;; 	 `(loop for ,i from ,(first args) to ,(second args)
-;; 	     by (or ,(third args) 1) collect ,i)))))
-
-
 
 (defmacro abbrev (short long)
   `(defmacro ,short (&rest args)
@@ -133,6 +113,8 @@
 ;; (defmacro abbrev (short long)
 ;;   (list 'defmacro short (list '&rest 'args)
 ;; 	(list 'cons (list 'quote long) 'args)))
+
+
 ;;====================================================
 ;; For Laziness
 ;;====================================================
@@ -156,81 +138,87 @@
 (defvar empty-pipe nil)
 (defun head (pipe) (first pipe))
 
+(defun empty-pipe-p (x)
+  (eq x empty-pipe))
+
+
 (defun tail (pipe)
   (if (functionp (rest pipe))
       (setf (rest pipe) (funcall (rest pipe)))
       (rest pipe)))
 
 (defun pipe-elt (pipe i)
-  (if (= i 0)
-      (head pipe)
-      (pipe-elt (tail pipe) (1- i))))
-
-;; (defun integers (&optional (start 0) end)
-;;   (if (or (null end) (<= start end))
-;;       (make-pipe start (integers (1+ start) end))
-;;       nil))
+  (cond ((empty-pipe-p pipe) nil)
+	((= i 0) (head pipe))
+	(t (pipe-elt (tail pipe) (1- i)))))
 
 
-;; (defun enumerate (pipe &key count key (result pipe))
-;;   (if (or (eq pipe empty-pipe) (eql count 0))
-;;       result
-;;       (progn
-;;         (unless (null key) (funcall key (head pipe)))
-;;         (enumerate (tail pipe) :count (if count (1- count))
-;;                    :key key :result result))))
 
 
-(defun filter-pipe (pred pipe)
+
+(defun pipe-filter (pred pipe)
   (if (funcall pred (head pipe))
       (make-pipe (head pipe)
-                 (filter-pipe pred (tail pipe)))
-      (filter-pipe pred (tail pipe))))
+                 (pipe-filter pred (tail pipe)))
+      (pipe-filter pred (tail pipe))))
 
-;; (defun sieve (pipe)
-;;   (make-pipe (head pipe)
-;;              (filter #'(lambda (x) (/= (mod x (head pipe)) 0))
-;;                      (sieve (tail pipe)))))
 
-;; (defvar *primes* (sieve (integers 2)))
 
-(defun map-pipe (fn pipe)
-  (if (eq pipe empty-pipe)
+(defun pipe-map (fn &rest pipes)
+  (if (empty-pipe-p (first pipes))
       empty-pipe
-      (make-pipe (funcall fn (head pipe))
-                 (map-pipe fn (tail pipe)))))
+      (make-pipe
+       (apply fn (mapcar #'head pipes))
+       (apply #'pipe-map
+	      (cons fn (mapcar #'tail pipes))))))
 
-(defun append-pipes (x y)
-  (if (eq x empty-pipe)
-      y
-      (make-pipe (head x)
-                 (append-pipes (tail x) y))))
 
-(defun mappend-pipe (fn pipe)
-  (if (eq pipe empty-pipe)
-      empty-pipe
-      (let ((x (funcall fn (head pipe))))
-        (make-pipe (head x)
-                   (append-pipes (tail x)
-                                 (mappend-pipe
-                                  fn (tail pipe)))))))
+(defun pipe-append (&rest xs)
+  (cond ((null xs) empty-pipe)
+	((empty-pipe-p (car xs))
+	 (apply #'pipe-append (cdr xs)))
+	(t (make-pipe (head (car xs))
+		      (apply #'pipe-append
+			     (tail (car xs))
+			     (cdr xs))))))
+
+
+;; (defun mappend-pipe (fn pipe)
+;;   (if (eq pipe empty-pipe)
+;;       empty-pipe
+;;       (let ((x (funcall fn (head pipe))))
+;;         (make-pipe (head x)
+;;                    (append-pipes (tail x)
+;;                                  (mappend-pipe
+;;                                   fn (tail pipe)))))))
 
 
 ;;=========================================================
 
-
-
-
-
-(defun memoize (fn)
-  (let ((cache (make-hash-table :test #'equal)))
+(defun memo (fn name key test)
+  (let ((table (make-hash-table :test test)))
+    (setf (get name 'memo) table)
     #'(lambda (&rest args)
-	(multiple-value-bind (val win) (gethash args cache)
-	  (if win
-	      val
-	      (setf (gethash args cache)
-		    (apply fn args)))))))
+	(let ((k (funcall key args)))
+	  (multiple-value-bind (val found-p) (gethash k table)
+	    (if found-p
+		val
+		(setf (gethash k table)
+		      (apply fn args))))))))
 
+
+(defun memoize (fn-name &key (key #'first) (test #'eql))
+  (setf (symbol-function fn-name)
+	(memo (symbol-function fn-name) fn-name key test)))
+
+(defun clear-memoize (fn-name)
+  (let ((table (get fn-name 'memo)))
+    (when table (clrhash table))))
+
+
+(defun curry (fn &rest args)
+  (lambda (&rest more-args)
+    (apply fn (append args more-args))))
 
 
 (defun minf (fn xs)
@@ -255,17 +243,8 @@
 
 
 ;;;
-(defmacro for*/list (binds &body body)
-  (labels ((expand (binds body result)
-             (if (null (cdr binds))
-                 `(loop for ,(caar binds) in ,(cadar binds) do
-                       (push ,(car body) ,result))
-                 `(loop for ,(caar binds) in ,(cadar binds) do
-                       ,(expand (cdr binds) body result)))))
-    (let ((result (gensym)))
-      `(let (,result)
-         ,(expand binds body result)
-         (nreverse ,result)))))
+
+
 
 
 
@@ -338,15 +317,10 @@
 	     result))))))
 
 
-;; (defun file-string (path)
-;;   (with-open-file (stream path)
-;;     (let ((data (make-string (file-length stream))))
-;;       (read-sequence data stream)
-;;       data)))
 
 
 ;; whole file to a string
-(defun file-string (path)
+(defun file->string (path)
   (with-open-file (stream path)
     (let ((data (make-array (file-length stream)
 			    :element-type 'character :fill-pointer t)))
@@ -354,7 +328,15 @@
 	    (read-sequence data stream))
       data)))
 
+(defun string->file (x file)
+  (with-open-file (s file
+		     :direction :output
+		     :if-exists :supersede)
+    (format s "~A" x)))
+
+;; (numbering '(a a b a c c b b a))
 (defun numbering (xs &key (key #'identity) (start 1) (test #'eql))
+  "Number a list"
   (let ((count-list '()))
     (values
      (loop for x in xs collect
@@ -365,29 +347,12 @@
      (nreverse count-list))))
 
 
-(defun str2file (x file)
-  (with-open-file (s file
-		     :direction :output
-		     :if-exists :supersede)
-    (format s "~A" x)))
-
-
 (defun range (start end &optional (step 1))
   (if (> end start)
       (loop for i from start below end by step
 	 collect i)
       (loop for i from start above end by step
 	 collect i)))
-
-
-
-(defun split-list (a xs &key (test #'eql))
-  (let ((p (position a xs :test test)))
-    (if p
-	(list (subseq xs 0 p)
-	      (nthcdr p xs))
-	(error "Nothing matches ~A" a))))
-
 
 
 ;; =======================================
@@ -483,54 +448,22 @@
 ;; ============================================
 ;; List comprehension
 ;; ============================================
-;; combinations of three natural numbers that sum to 20.
-;; [(list a b c) a <- #[1 10] b <- #[1 10] c <- #[1 10] (= (+ a b c) 20) (>= a b) (>= b c)]
-
-
-;; (set-macro-character
-;;  #\[
-;;  #'(lambda (stream char)
-;;      (declare (ignore char))
-;;      (let ((expr (read-delimited-list #\] stream t)))
-;;        (apply #'comprehend (rbp expr)))))
-
-
-;; (lcomp ((x (range 1 11))
-;; 		(y (range 1 11))
-;; 		(z (range 1 11)))
-;; 	  (= (+ (* x x) (* y y)) (* z z))
-;; 	  (>= y x)
-;; 	  (list x y z))
-(defmacro lcomp (binds &body body)
-  (comprehend (first (last body))
-	      binds
-	      (butlast body)))
-
-
-;; might not be very efficient
-(defun comprehend (result binds preds)
-  (if (null binds)
-      `(and ,@preds (list ,result))
-      (let ((bind (car binds)))	
-	`(mapcan #'(lambda (,(car bind))
-		     ,(comprehend result (cdr binds) preds))
-		 ,(second bind)))))
-
-;; expr -> (result binds preds)
-(defun rbp (expr)
-  (labels ((rec (expr binds preds)
-	     (cond ((null expr) (list (nreverse binds) (nreverse preds)))
-		   ((eql '<- (second expr))
-		    (rec (cdddr expr)
-			 (cons (list (first expr) (third expr)) binds)
-			 preds))
-		   (t (rec (cdr expr) binds (cons (car expr) preds))))))
-    (cons (car expr) (rec (cdr expr) '() '()))))
-
-
-
-
-
+;; (lcomp
+;;  :binds ((a '(1 2 3 4))
+;; 	 (b '(1 2 3)))
+;;  :test (> (+ a b) 3)
+;;  :result (list a b))
+(defmacro lcomp (&key binds result (test t))
+  (labels ((expand (binds result test accum)
+	     (if (null (cdr binds))
+		 `(loop for ,(caar binds) in ,(cadar binds) when ,test do
+		       (push ,result ,accum))
+		 `(loop for ,(caar binds) in ,(cadar binds) do
+		       ,(expand (cdr binds) result test accum)))))
+    (let ((accum (gensym)))
+      `(let (,accum)
+	 ,(expand binds result test accum)
+	 (nreverse ,accum)))))
 
 
 

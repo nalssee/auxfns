@@ -135,6 +135,31 @@
   (mylast (cons _  xs)) (mylast xs)
 
   )
-  
 
-  
+(defparameter ones (make-pipe 1 ones))
+
+(defparameter integers (make-pipe 0 (pipe-map #'+ ones integers)))
+(defparameter fibs
+  (make-pipe 0
+	     (make-pipe 1
+			(pipe-map #'+ (tail fibs)
+				  fibs))))
+
+(defun integers-starting-from (n)
+  (make-pipe n (integers-starting-from (1+ n))))
+
+(defparameter primes
+  (make-pipe
+   2
+   (pipe-filter #'prime? (integers-starting-from 3))))
+
+(memoize 'fib1)
+;; compare (fib1 40) and (fib2 40)
+
+(multiple-value-bind (a b) (numbering '(a a b a c c b b a))
+  (print a)
+  (print b))
+
+
+
+
