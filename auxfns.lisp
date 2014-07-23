@@ -32,9 +32,6 @@
 	   :clear-memoize
 	   :curry
 
-	   :minf
-	   :maxf
-
 	   :aif
 	   :aif2
 	   :acond
@@ -220,29 +217,6 @@
   (lambda (&rest more-args)
     (apply fn (append args more-args))))
 
-
-(defun minf (fn xs)
-  (labels ((aux (x v xs)
-	     (if (null xs)
-		 (values x v)
-		 (let ((nv (funcall fn (car xs))))
-		   (if (< nv v)
-		       (aux (Car xs) nv (cdr xs))
-		       (aux x v (cdr xs)))))))
-    (aux (car xs) (funcall fn (car xs)) (cdr xs))))
-
-(defun maxf (fn xs)
-  (labels ((aux (x v xs)
-	     (if (null xs)
-		 (values x v)
-		 (let ((nv (funcall fn (car xs))))
-		   (if (> nv v)
-		       (aux (car xs) nv (cdr xs))
-		       (aux x v (cdr xs)))))))
-    (aux (car xs) (funcall fn (car xs)) (cdr xs))))
-
-
-;;;
 
 
 
