@@ -1,11 +1,11 @@
 ;; global lexical variables
 
 (defpackage :auxfns.gl
-  (:use cl)
+  (:use :cl)
   (:export :deflexical
 	   :defc))
 
-(in-package auxfns.gl)
+(in-package :auxfns.gl)
 
 
 ;; http://blog.rongarret.info/2009/08/global-variables-done-right.html
