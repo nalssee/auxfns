@@ -1,5 +1,5 @@
 (defpackage :auxfns.cont
-  (:use :cl :auxfns.gl)
+  (:use :cl :auxfns :auxfns.gl)
   (:export :=defun
 	   :=lambda
 	   :=bind
