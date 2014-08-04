@@ -13,7 +13,6 @@
 
 	   :mappend
 
-
 	   :memoize
 	   :clear-memoize
 	   :curry
@@ -74,7 +73,6 @@
 ;; (defmacro abbrev (short long)
 ;;   (list 'defmacro short (list '&rest 'args)
 ;; 	(list 'cons (list 'quote long) 'args)))
-
 
 
 ;;=========================================================
