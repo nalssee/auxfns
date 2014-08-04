@@ -1,5 +1,5 @@
 (defpackage :auxfns.cont
-  (:use :cl :auxfns :auxfns.gl)
+  (:use :cl :auxfns)
   (:export :=defun
 	   :=lambda
 	   :=bind
@@ -24,13 +24,16 @@
 ;;===========================================================
 
 ;; Very problematic
-;; (setf _cont_ #'identity)
-(deflexical _cont_ #'identity)
+;; (setf _cont_ #'values)
+
+;; "http://www.cliki.net/on lisp"
+(defvar *actual-cont* #'values)
+(define-symbol-macro _cont_ *actual-cont*)
+
 
 ;; define toplevel continuation first
-(defmacro toplevel-k (&optional (fn '(function identity)))
+(defmacro toplevel-k (&optional (fn '(function values)))
   `(setf _cont_ ,fn))
-
 
 
 (defmacro =lambda (parms &body body)

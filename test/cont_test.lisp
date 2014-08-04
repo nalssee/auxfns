@@ -1,10 +1,9 @@
 (defpackage :cont_test
   (:use :cl :auxfns.cont))
 
-
 (in-package :cont_test)
 ;; continuation passing macro
-(toplevel-k)
+;; (toplevel-k)
 
 (=defun add (x y)
   (=values (+ x y)))
@@ -86,10 +85,10 @@
 		 (miller ,miller)
 		 (smith ,smith))))))
 
-(toplevel-k #'print)
-(multiple-dwelling)
-(bag-of (prime-sum-pair '(1 3 5 8) '(20 35 110)))
-(bag-of (prime-sum-pair '(19 27 30) '(11 36 58)))
+;; (toplevel-k #'print)
+(print (multiple-dwelling))
+(print (bag-of (prime-sum-pair '(1 3 5 8) '(20 35 110))))
+(print (bag-of (prime-sum-pair '(19 27 30) '(11 36 58))))
 
 
 
