@@ -34,6 +34,8 @@
 
 (in-package :auxfns)
 
+
+
 (defmacro alambda (parms &body body)
   `(labels ((rec ,parms ,@body))
      #'rec))
@@ -63,7 +65,6 @@
 
 (defun mappend (fn &rest lsts)
   (apply #'append (apply #'mapcar fn lsts)))
-
 
 
 (defmacro abbrev (short long)

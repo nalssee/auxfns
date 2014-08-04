@@ -66,10 +66,10 @@
 
 (=defun multiple-dwelling ()
   (amb-let* ((baker '(1 2 3 4 5))
-	    (cooper '(1 2 3 4 5))
-	    (fletcher '(1 2 3 4 5))
-	    (miller '(1 2 3 4 5))
-	    (smith '(1 2 3 4 5)))
+	     (cooper '(1 2 3 4 5))
+	     (fletcher '(1 2 3 4 5))
+	     (miller '(1 2 3 4 5))
+	     (smith '(1 2 3 4 5)))
     (only-when
       (distinct? (list baker cooper fletcher miller smith))
       (not (= baker 5))
