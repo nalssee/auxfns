@@ -1,5 +1,5 @@
 (defpackage :cont_test
-  (:use :cl :auxfns.cont))
+  (:use :cl :auxfns.cont :auxfns.pf))
 
 (in-package :cont_test)
 ;; continuation passing macro
@@ -34,14 +34,33 @@
   (find-divisor n 2))
 
 (defun find-divisor (n test-divisor)
-  (cond ((> (* test-divisor test-divisor) n) n)
+  (declare (optimize (safety 0) (speed 3)))
+  (declare (fixnum n test-divisor))
+  (cond ((> (the fixnum (* test-divisor test-divisor)) n) n)
 	((divides? test-divisor n) test-divisor)
 	(t (find-divisor n (1+ test-divisor)))))
 
+
 (defun divides? (a b)
-  (= (rem b a) 0))
+  (declare (optimize (safety 0) (speed 3)))
+  (declare (fixnum a b))
+  (zerop (rem b a)))
+
 (defun prime? (n)
   (= n (smallest-divisor n)))
+
+(defun primes (a b)
+  (loop for i from a to b when (prime? i)
+       collect i))
+
+(with-profiling (divides? primes prime? find-divisor) (primes 1 100000) (values))
+
+
+
+
+
+
+
 
 
 (init-paths)
@@ -89,6 +108,7 @@
 (print (multiple-dwelling))
 (print (bag-of (prime-sum-pair '(1 3 5 8) '(20 35 110))))
 (print (bag-of (prime-sum-pair '(19 27 30) '(11 36 58))))
+
 
 
 

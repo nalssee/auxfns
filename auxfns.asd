@@ -5,6 +5,7 @@
 	       (:file "auxfns.pipe")
 	       ;; (:file "auxfns.gl")
 	       (:file "auxfns.cont")
+	       (:file "auxfns.pf")
 	       (:file "auxfns.def" :depends-on ("auxfns"))))
 
 
