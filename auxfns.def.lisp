@@ -17,21 +17,34 @@
   `(progn ,@(mapcar
 	     ;; form defparameter or defun
 	     #'definition
-	     (same-feathered (group sexps :n 2)))))
+	     (group-by-definition-name (group sexps :n 2)))))
+
+
+
+(defun group-by-definition-name (clauses)
+  (group clauses
+	 :key #'definition-name))
+
+(defun definition-name (clause)
+  (if (atom (car clause))
+      (car clause)
+      (caar clause)))
+
 
 ;; bind clauses with the same name    
-(defun same-feathered (clauses)
-  (group clauses
-	 :test
-	 (lambda (a b)
-	   (when (and (not (atom (car a)))
-		      (not (atom (car b))))
-	     (eql (caar a) (caar b))))))
+;; (defun same-feathered (clauses)
+;;   (group clauses
+;; 	 :test
+;; 	 (lambda (a b)
+;; 	   (when (and (not (atom (car a)))
+;; 		      (not (atom (car b))))
+;; 	     (eql (caar a) (caar b))))))
 
 (defun definition (clauses)
   (if (and (null (cdr clauses)) (atom (caar clauses)))
       (cons 'defparameter (var-value clauses))
       (cons 'defun (var-args-value clauses))))
+
 
 (defun var-value (clauses)
   `(,(caar clauses) ,(cadar clauses)))
@@ -73,10 +86,10 @@
 	     (let-binds (remove-if #'function-clause-p internal-clauses))
 	     (labels-binds (remove-if-not #'function-clause-p internal-clauses)))
 	(if (null let-binds)
-	    `(labels ,(mapcar #'var-args-value (same-feathered labels-binds))
+	    `(labels ,(mapcar #'var-args-value (group-by-definition-name labels-binds))
 	       ,(car clause-value))
 	    `(let ,let-binds
-	       (labels ,(mapcar #'var-args-value (same-feathered labels-binds))
+	       (labels ,(mapcar #'var-args-value (group-by-definition-name labels-binds))
 		 ,(car clause-value)))))
       clause-value))
       
