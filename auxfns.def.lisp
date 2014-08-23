@@ -20,7 +20,6 @@
 	     (group-by-definition-name (group sexps :n 2)))))
 
 
-
 (defun group-by-definition-name (clauses)
   (group clauses
 	 :key #'definition-name))
@@ -41,43 +40,111 @@
 ;; 	     (eql (caar a) (caar b))))))
 
 (defun definition (clauses)
-  (if (and (null (cdr clauses)) (atom (caar clauses)))
-      (cons 'defparameter (var-value clauses))
-      (cons 'defun (var-args-value clauses))))
+  (cond ((and (null (cdr clauses)) (atom (caar clauses)))
+	 (cons 'defparameter (var-value clauses)))
+	(t (cons 'defun (var-parms-value clauses)))))
+
+(defun type-specification? (clause)
+  "Tests if the given clause includes type specification"
+  (and (not (null (rest (first clause))))
+       (eql (second (first clause)) (intern "!!"))))
 
 
 (defun var-value (clauses)
   `(,(caar clauses) ,(cadar clauses)))
-  
-(defun var-args-value (clauses)
-  (let* ((cl1 (car clauses)))
-    (if (null (cdr clauses))
-	(if (not (every #'variable-p (pattern cl1)))
-	    (error "Single clause definition must not have any constant in a pattern ~A"
-		   cl1)
-	    `(,(caar cl1) ,(cdar cl1)
-	       ,(let-labels-body (second cl1))))
-	(let ((params (params cl1)))
-	  `(,(caar cl1) ,params
-	     ,(function-body-for-multiple-clauses clauses params))))))
+
+;; (defun include-type-specification (arg-types return-type var-parms-value)
+;;   (destructuring-bind (var parms value) var-parms-value
+;;     `(,var ,parms
+;; 	   (declare (optimize (speed 3) (safety 0)))
+;; 	   (declare ,@(mapcar #'list arg-types parms))
+;; 	   (the ,return-type
+;; 		,(match-match-params arg-types value)))))
+
+
+
+(defun arg-types (type-clause)
+  (cddr (clause-head type-clause)))
+
+(defun return-type (type-clause)
+  (second type-clause))
+
+(defun clause-head (clause) (first clause))
+(defun clause-body (clause) (second clause))
+(defun clause-name (clause) (first (clause-head clause)))
+(defun clause-pattern (clause) (cdar clause))
+
+(defun var-parms-value (clauses)
+  (let ((cl1 (car clauses))
+	(cls (cdr clauses)))
+    (if (type-specification? cl1)
+	(let ((arg-types (arg-types cl1))
+	      (return-type (return-type cl1))
+	      (pattern (clause-pattern (car cls))))
+	  
+	  (if (null (cdr cls)) ;single clause
+	     `(,(clause-name (car cls)) ,(clause-pattern (car cls))
+		(declare (optimize (speed 3) (safety 0)))
+		(declare ,@(mapcar #'list arg-types pattern))
+		(the ,return-type ,(let-labels-body (clause-body (car cls)))))
+	     (let ((params (params (car cls))))
+	       `(,(caar (car cls)) ,params
+		  (declare (optimize (speed 3) (safety 0)))
+		  (declare ,@(mapcar #'list arg-types params))
+		  (the ,return-type
+		       ,(match-params-type-specification
+			 arg-types
+			 (function-body-for-multiple-clauses cls params)))))))
+	(if (null cls)
+	    `(,(clause-name cl1) ,(clause-pattern cl1)
+	       ,(let-labels-body (clause-body cl1)))
+	    (let ((params (params cl1)))
+	      `(,(clause-name cl1) ,params
+		 ,(function-body-for-multiple-clauses clauses params)))))))
+
+
+(defun match-params-type-specification (arg-types match-form)
+  "As for multiple clause definitions parameters for the definitions are generated
+   So the parameters for each match clauses are not type specified
+  "
+  (list* (first match-form) (second match-form)
+	 (mapcar #'(lambda (c)
+		     (let ((pairs (mapcan (lambda (a p)
+						 (when (and (symbolp p)
+							    (not (eql p nil))
+							    (not (eql p t)))
+						   (list (list a p))))
+					       arg-types
+					       (cdr (first c)))))
+		       (if (null pairs)
+			   c
+			   (list (first c)
+				 `(declare ,@pairs)
+				 (second c)))))
+		 (cddr match-form))))
+
+
+
+
+
 
 (defun function-body-for-multiple-clauses (clauses params)
   `(match (list ,@params)
      ,@(mapcar #'(lambda (c)
-		   (list (cons 'list (pattern c))
+		   (list (cons 'list (clause-pattern c))
 			 (let-labels-body (second c))))
 	       clauses)))
 
 (defun params (clause)
   (let ((result '()))
-    (dotimes (i (length (pattern clause)))
+    (dotimes (i (length (clause-pattern clause)))
       (push (gensym) result))
     result))
 
 (defun variable-p (x)
   (and (symbolp x) (not (eq x nil)) (not (eq x t))))
 
-(defun pattern (clause) (cdar clause))
+
 
 (defun let-labels-body (clause-value)
   (if (contains-where-p clause-value)
@@ -86,10 +153,10 @@
 	     (let-binds (remove-if #'function-clause-p internal-clauses))
 	     (labels-binds (remove-if-not #'function-clause-p internal-clauses)))
 	(if (null let-binds)
-	    `(labels ,(mapcar #'var-args-value (group-by-definition-name labels-binds))
+	    `(labels ,(mapcar #'var-parms-value (group-by-definition-name labels-binds))
 	       ,(car clause-value))
 	    `(let ,let-binds
-	       (labels ,(mapcar #'var-args-value (group-by-definition-name labels-binds))
+	       (labels ,(mapcar #'var-parms-value (group-by-definition-name labels-binds))
 		 ,(car clause-value)))))
       clause-value))
       
