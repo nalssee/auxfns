@@ -35,17 +35,14 @@
   (my-append nil y) y
   (my-append (cons x y) z) (cons x (my-append y z))
 
-  (sqrt1 !! single-float) single-float
+  ;; No idea how to type yet
   (sqrt1 x) ((sqrt-iter 1.0)
 	     where
 	     (good-enough? guess) (< (abs (- (* guess guess) x)) 0.001)
 	     (improve guess) (average guess (/ x guess))
-	     (average a b) (/ (+ a b) 2)
-
-	     (sqrt-iter !! single-float) single-float
+	     (average a b) (/ (+ a b) 2.0)
 	     (sqrt-iter guess) (cond ((good-enough? guess) guess)
 				     (t (sqrt-iter (improve guess)))))
-  
   
   (capital-city 'Korea) 'Seoul
   (capital-city 'China) 'Beijing

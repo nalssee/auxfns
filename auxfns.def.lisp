@@ -130,12 +130,10 @@
 	     ;; let binds come before labels binds automatically.
 	     (let-binds (remove-if #'function-clause-p internal-clauses))
 	     (labels-binds (remove-if-not #'function-clause-p internal-clauses)))
-	(if (null let-binds)
-	    `(labels ,(mapcar #'var-parms-value (group-by-definition-name labels-binds))
-	       ,(car clause-value))
-	    `(let ,let-binds
-	       (labels ,(mapcar #'var-parms-value (group-by-definition-name labels-binds))
-		 ,(car clause-value)))))
+	;; Have faith in CL compilers. They handle when let-binds or labels-binds are null
+	`(let* ,let-binds
+	   (labels ,(mapcar #'var-parms-value (group-by-definition-name labels-binds))
+	     ,(car clause-value))))
       clause-value))
       
 (defun contains-where-p (clause-value)
