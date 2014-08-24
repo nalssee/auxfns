@@ -86,32 +86,51 @@
 		 ,(function-body-for-multiple-clauses clauses params)))))))
 
 
+
 (defun match-params-type-specification (arg-types match-form)
   "As for multiple clause definitions parameters for the definitions are generated
    So the parameters for each match clauses are not type specified"
-  (list* (first match-form) (second match-form)
-	 (mapcar #'(lambda (c)
-		     (let ((pairs (mapcan (lambda (a p)
-						 (when (and (symbolp p)
-							    (not (eql p nil))
-							    (not (eql p t)))
-						   (list (list a p))))
-					       arg-types
-					       (cdr (first c)))))
-		       (if (null pairs)
-			   c
-			   (list (first c)
-				 `(declare ,@pairs)
-				 (second c)))))
-		 (cddr match-form))))
+  (flet ((parameter? (x) (and (symbolp x)
+			      (not (eql x nil))
+			      (not (eql x t)))))
+    (list* (first match-form) (second match-form)
+	   (mapcar #'(lambda (c)
+		       ;; ex) pairs:: ((fixnum x) (list y)) 
+		       (let ((pairs (if (null (cdr arg-types)) ; a single parmeter case
+					(when (parameter? (first c))
+					  (list (list (first arg-types) (first c))))
+					(mapcan (lambda (a p)
+						  (when (parameter? p)
+						    (list (list a p))))
+						arg-types
+						;; remove 'list' tag
+						(cdr (first c))))))
+			 (if (null pairs)
+			     c
+			     (list (first c)
+				   `(declare ,@pairs)
+				   (second c)))))
+		   (cddr match-form)))))
+
 
 
 (defun function-body-for-multiple-clauses (clauses params)
-  `(match (list ,@params)
-     ,@(mapcar #'(lambda (c)
-		   (list (cons 'list (clause-pattern c))
-			 (let-labels-body (second c))))
-	       clauses)))
+  ;; when there's only one parameter
+  ;; Might not be a great lift for performance
+  ;; but easier to read when macroexpanded at list
+  
+  (if (null (cdr params))
+      `(match ,(car params)
+	      ,@(mapcar #'(lambda (c)
+			    (list (car (clause-pattern c))
+				  (let-labels-body (second c))))
+			clauses))
+      `(match (list ,@params)
+	      ,@(mapcar #'(lambda (c)
+			    (list (cons 'list (clause-pattern c))
+				  (let-labels-body (second c))))
+			clauses))))
+
 
 (defun params (clause)
   "Generate symbols as many as function parameters"
