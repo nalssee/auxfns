@@ -16,13 +16,14 @@
   (fib1 1) 1
   (fib1 n) (+ (fib1 (1- n)) (fib1 (- n 2)))
   
-
+  ;; For performance comparison with fib1
   (fib2 !! fixnum) fixnum
   (fib2 n) (cond ((= n 0) 0)
 		 ((= n 1) 1)
 		 (t (+ (fib2 (- n 1)) (fib2 (- n 2)))))
 
-
+  ;; maybe type "list" needs sophistication,
+  ;; since it is actually a list of numbers
   (quicksort !! list) list
   (quicksort nil) nil
   (quicksort (cons x xs)) (append (quicksort (remove-if (curry #'<= x) xs))
@@ -57,12 +58,6 @@
 
   )
 
-
-
-
-(def
-
-  )
 
 
 
