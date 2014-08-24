@@ -64,4 +64,4 @@
   (assert-true (= (sqrt1 10) 3.1622777))  ; depends on systems
   (assert-true (equal (capital-city 'Brasil) 'no-idea)))
 
-;; (run-suite 'simple-test-suite)
+(print (run-suite 'simple-test-suite))

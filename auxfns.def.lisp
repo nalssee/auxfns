@@ -90,27 +90,25 @@
 (defun match-params-type-specification (arg-types match-form)
   "As for multiple clause definitions parameters for the definitions are generated
    So the parameters for each match clauses are not type specified"
-  (flet ((parameter? (x) (and (symbolp x)
-			      (not (eql x nil))
-			      (not (eql x t)))))
-    (list* (first match-form) (second match-form)
-	   (loop for c in (cddr match-form) collect
-		(let ((pairs
-		       ;; ex) pairs:: ((fixnum x) (list y)) 
-		       (if (null (cdr arg-types)) ; a single parmeter case
-				 (when (parameter? (first c))
-				   (list (list (first arg-types) (first c))))
-				 (mapcan (lambda (a p)
-					   (when (parameter? p)
-					     (list (list a p))))
-					 arg-types
-					 ;; remove 'list' tag
-					 (cdr (first c))))))
-		  (if (null pairs)
-		      c
-		      (list (first c)
-			    `(declare ,@pairs)
-			    (second c))))))))
+  (list* (first match-form) (second match-form)
+	 (loop for c in (cddr match-form) collect
+	      (let ((pairs
+		     ;; ex) pairs:: ((fixnum x) (list y)) 
+		     (if (null (cdr arg-types)) ; a single parmeter case
+			 (when (variable-p (first c))
+			   (list (list (first arg-types) (first c))))
+			 (mapcan (lambda (a p)
+				   (when (variable-p p)
+				     (list (list a p))))
+				 arg-types
+				 ;; remove 'list' tag
+				 (cdr (first c))))))
+		(if (null pairs)
+		    c
+		    (list (first c)
+			  `(declare ,@pairs)
+			  (second c)))))))
+
 
 
 
