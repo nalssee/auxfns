@@ -1,5 +1,5 @@
 (defpackage :def_test
-  (:use :cl :auxfns.def))
+  (:use :cl :auxfns.def :auxfns))
 
 (in-package :def_test)
 
@@ -15,11 +15,19 @@
   (fib1 0) 0
   (fib1 1) 1
   (fib1 n) (+ (fib1 (1- n)) (fib1 (- n 2)))
+  
 
   (fib2 !! fixnum) fixnum
   (fib2 n) (cond ((= n 0) 0)
 		 ((= n 1) 1)
 		 (t (+ (fib2 (- n 1)) (fib2 (- n 2)))))
+
+
+  (quicksort !! list) list
+  (quicksort nil) nil
+  (quicksort (cons x xs)) (append (quicksort (remove-if (curry #'<= x) xs))
+				  (list x)
+				  (quicksort (remove-if (curry #'> x) xs)))
 
   (my-append !! list list) list
   (my-append x nil) x
@@ -32,6 +40,7 @@
 	     (good-enough? guess) (< (abs (- (* guess guess) x)) 0.001)
 	     (improve guess) (average guess (/ x guess))
 	     (average a b) (/ (+ a b) 2)
+
 	     (sqrt-iter !! single-float) single-float
 	     (sqrt-iter guess) (cond ((good-enough? guess) guess)
 				     (t (sqrt-iter (improve guess)))))
@@ -48,6 +57,12 @@
 
   )
 
+
+
+
+(def
+
+  )
 
 
 
