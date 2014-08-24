@@ -110,26 +110,21 @@
 			  (second c)))))))
 
 
-
-
-
-
 (defun function-body-for-multiple-clauses (clauses params)
-  ;; when there's only one parameter
-  ;; Might not be a great lift for performance
-  ;; but easier to read when macroexpanded at list
-  
   (if (null (cdr params))
+      ;; a single parameter case
+      ;; Somtimes, it may not be a great lift for performance
+      ;; but easier to read when macroexpanded at least
       `(match ,(car params)
-	      ,@(mapcar #'(lambda (c)
-			    (list (car (clause-pattern c))
-				  (let-labels-body (second c))))
-			clauses))
+	 ,@(mapcar #'(lambda (c)
+		       (list (car (clause-pattern c))
+			     (let-labels-body (second c))))
+		   clauses))
       `(match (list ,@params)
-	      ,@(mapcar #'(lambda (c)
-			    (list (cons 'list (clause-pattern c))
-				  (let-labels-body (second c))))
-			clauses))))
+	 ,@(mapcar #'(lambda (c)
+		       (list (cons 'list (clause-pattern c))
+			     (let-labels-body (second c))))
+		   clauses))))
 
 
 (defun params (clause)
