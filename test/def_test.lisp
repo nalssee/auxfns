@@ -4,7 +4,6 @@
 (in-package :def_test)
 
 
-
 (def
   e 2.718
 
@@ -51,16 +50,4 @@
 
 
 
-
-
-
-
-;; (defun fib3 (n)
-;;   (declare (optimize (speed 3) (safety 0)))
-;;   (declare (fixnum n))
-;;   (the fixnum
-;;        (if (< n 2)
-;; 	   n
-;; 	   (+ (fib3 (- n 1))
-;; 	      (fib3 (- n 2))))))
 

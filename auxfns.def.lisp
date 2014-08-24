@@ -9,9 +9,6 @@
 ;; def
 ;; =======================================
 
-;; 05/28/2014
-;; Syntactic sugar for pattern matching based definition
-;; See the below of this file for example
 
 (defmacro def (&body sexps)
   `(progn ,@(mapcar
@@ -30,38 +27,11 @@
       (caar clause)))
 
 
-;; bind clauses with the same name    
-;; (defun same-feathered (clauses)
-;;   (group clauses
-;; 	 :test
-;; 	 (lambda (a b)
-;; 	   (when (and (not (atom (car a)))
-;; 		      (not (atom (car b))))
-;; 	     (eql (caar a) (caar b))))))
-
 (defun definition (clauses)
+  "Form defition from clauses"
   (cond ((and (null (cdr clauses)) (atom (caar clauses)))
 	 (cons 'defparameter (var-value clauses)))
 	(t (cons 'defun (var-parms-value clauses)))))
-
-(defun type-specification? (clause)
-  "Tests if the given clause includes type specification"
-  (and (not (null (rest (first clause))))
-       (eql (second (first clause)) (intern "!!"))))
-
-
-(defun var-value (clauses)
-  `(,(caar clauses) ,(cadar clauses)))
-
-;; (defun include-type-specification (arg-types return-type var-parms-value)
-;;   (destructuring-bind (var parms value) var-parms-value
-;;     `(,var ,parms
-;; 	   (declare (optimize (speed 3) (safety 0)))
-;; 	   (declare ,@(mapcar #'list arg-types parms))
-;; 	   (the ,return-type
-;; 		,(match-match-params arg-types value)))))
-
-
 
 (defun arg-types (type-clause)
   (cddr (clause-head type-clause)))
@@ -74,6 +44,19 @@
 (defun clause-name (clause) (first (clause-head clause)))
 (defun clause-pattern (clause) (cdar clause))
 
+
+
+(defun type-specification? (clause)
+  "Tests if the given clause includes type specification"
+  (and (not (null (rest (first clause))))
+       (eql (second (first clause)) (intern "!!"))))
+
+
+(defun var-value (clauses)
+  `(,(caar clauses) ,(cadar clauses)))
+
+
+
 (defun var-parms-value (clauses)
   (let ((cl1 (car clauses))
 	(cls (cdr clauses)))
@@ -81,7 +64,7 @@
 	(let ((arg-types (arg-types cl1))
 	      (return-type (return-type cl1))
 	      (pattern (clause-pattern (car cls))))
-	  
+	  ;; type spec included
 	  (if (null (cdr cls)) ;single clause
 	     `(,(clause-name (car cls)) ,(clause-pattern (car cls))
 		(declare (optimize (speed 3) (safety 0)))
@@ -95,6 +78,7 @@
 		       ,(match-params-type-specification
 			 arg-types
 			 (function-body-for-multiple-clauses cls params)))))))
+	;; no type spec
 	(if (null cls)
 	    `(,(clause-name cl1) ,(clause-pattern cl1)
 	       ,(let-labels-body (clause-body cl1)))
@@ -105,8 +89,7 @@
 
 (defun match-params-type-specification (arg-types match-form)
   "As for multiple clause definitions parameters for the definitions are generated
-   So the parameters for each match clauses are not type specified
-  "
+   So the parameters for each match clauses are not type specified"
   (list* (first match-form) (second match-form)
 	 (mapcar #'(lambda (c)
 		     (let ((pairs (mapcan (lambda (a p)
@@ -124,10 +107,6 @@
 		 (cddr match-form))))
 
 
-
-
-
-
 (defun function-body-for-multiple-clauses (clauses params)
   `(match (list ,@params)
      ,@(mapcar #'(lambda (c)
@@ -136,6 +115,7 @@
 	       clauses)))
 
 (defun params (clause)
+  "Generate symbols as many as function parameters"
   (let ((result '()))
     (dotimes (i (length (clause-pattern clause)))
       (push (gensym) result))
@@ -143,8 +123,6 @@
 
 (defun variable-p (x)
   (and (symbolp x) (not (eq x nil)) (not (eq x t))))
-
-
 
 (defun let-labels-body (clause-value)
   (if (contains-where-p clause-value)
@@ -167,8 +145,6 @@
 
 (defun function-clause-p (clause)
   (consp (car clause)))
-;; ============================================
-;; End of def
-;; ============================================
+
 
 
