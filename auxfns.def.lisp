@@ -19,12 +19,7 @@
 
 (defun group-by-definition-name (clauses)
   (group clauses
-	 :key #'definition-name))
-
-(defun definition-name (clause)
-  (if (atom (car clause))
-      (car clause)
-      (caar clause)))
+	 :key #'clause-name))
 
 
 (defun definition (clauses)
@@ -41,7 +36,11 @@
 
 (defun clause-head (clause) (first clause))
 (defun clause-body (clause) (second clause))
-(defun clause-name (clause) (first (clause-head clause)))
+(defun clause-name (clause)
+  (if (atom (car clause))
+      (car clause)
+      (caar clause)))
+;; function parameters if any
 (defun clause-pattern (clause) (cdar clause))
 
 

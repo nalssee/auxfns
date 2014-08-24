@@ -1,5 +1,7 @@
 (defpackage :def_test
-  (:use :cl :auxfns.def :auxfns
+  (:use :cl
+	:auxfns.def
+	:auxfns  ; for curry
 	:clunit))
 
 (in-package :def_test)
@@ -7,10 +9,6 @@
 
 (def
   e 2.718
-
-  (fact1 !! fixnum) fixnum
-  (fact1 n) (cond ((= n 1) 1)
-  		  (t (* n (fact1 (- n 1)))))
 
   (fib1 !! fixnum) fixnum
   (fib1 0) 0
@@ -50,9 +48,9 @@
   (capital-city 'Japan) 'Tokyo
   (capital-city _) 'no-idea
 
-  (mylast !! list) *
-  (mylast (list x)) x
-  (mylast (cons _  xs)) (mylast xs)
+  (my-last !! list) *
+  (my-last (list x)) x
+  (my-last (cons _  xs)) (my-last xs)
 
   )
 
@@ -60,10 +58,10 @@
 
 (defsuite simple-test-suite ())
 (deftest test1 (simple-test-suite)
-  (assert-true (= (fib1 10)  (fib2 10)))
+  (assert-true (= (fib1 10) (fib2 10) 55))
   (assert-true (equal (quicksort '(-3 4 10 0 1))
 		      '(-3 0 1 4 10)))
-  (assert-true (= (sqrt1 10) 3.1622777))
+  (assert-true (= (sqrt1 10) 3.1622777))  ; depends on systems
   (assert-true (equal (capital-city 'Brasil) 'no-idea)))
 
 ;; (run-suite 'simple-test-suite)
