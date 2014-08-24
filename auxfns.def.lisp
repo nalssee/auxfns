@@ -94,23 +94,25 @@
 			      (not (eql x nil))
 			      (not (eql x t)))))
     (list* (first match-form) (second match-form)
-	   (mapcar #'(lambda (c)
+	   (loop for c in (cddr match-form) collect
+		(let ((pairs
 		       ;; ex) pairs:: ((fixnum x) (list y)) 
-		       (let ((pairs (if (null (cdr arg-types)) ; a single parmeter case
-					(when (parameter? (first c))
-					  (list (list (first arg-types) (first c))))
-					(mapcan (lambda (a p)
-						  (when (parameter? p)
-						    (list (list a p))))
-						arg-types
-						;; remove 'list' tag
-						(cdr (first c))))))
-			 (if (null pairs)
-			     c
-			     (list (first c)
-				   `(declare ,@pairs)
-				   (second c)))))
-		   (cddr match-form)))))
+		       (if (null (cdr arg-types)) ; a single parmeter case
+				 (when (parameter? (first c))
+				   (list (list (first arg-types) (first c))))
+				 (mapcan (lambda (a p)
+					   (when (parameter? p)
+					     (list (list a p))))
+					 arg-types
+					 ;; remove 'list' tag
+					 (cdr (first c))))))
+		  (if (null pairs)
+		      c
+		      (list (first c)
+			    `(declare ,@pairs)
+			    (second c))))))))
+
+
 
 
 
