@@ -1,5 +1,6 @@
 (defpackage :def_test
-  (:use :cl :auxfns.def :auxfns))
+  (:use :cl :auxfns.def :auxfns
+	:clunit))
 
 (in-package :def_test)
 
@@ -57,4 +58,12 @@
 
 
 
+(defsuite simple-test-suite ())
+(deftest test1 (simple-test-suite)
+  (assert-true (= (fib1 10)  (fib2 10)))
+  (assert-true (equal (quicksort '(-3 4 10 0 1))
+		      '(-3 0 1 4 10)))
+  (assert-true (= (sqrt1 10) 3.1622777))
+  (assert-true (equal (capital-city 'Brasil) 'no-idea)))
 
+;; (run-suite 'simple-test-suite)
