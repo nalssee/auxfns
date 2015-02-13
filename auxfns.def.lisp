@@ -4,11 +4,9 @@
 
 (in-package :auxfns.def)
 
-
-;; =======================================
-;; def
-;; =======================================
-
+;; 05/28/2014
+;; Syntactic sugar for pattern matching based definition
+;; See the below of this file for example
 
 (defmacro def (&body sexps)
   `(progn ,@(mapcar
@@ -19,123 +17,51 @@
 
 (defun group-by-definition-name (clauses)
   (group clauses
-	 :key #'clause-name))
+	 :key #'definition-name))
 
-
-(defun definition (clauses)
-  "Form defition from clauses"
-  (cond ((and (null (cdr clauses)) (atom (caar clauses)))
-	 (cons 'defparameter (var-value clauses)))
-	(t (cons 'defun (var-parms-value clauses)))))
-
-(defun arg-types (type-clause)
-  (cddr (clause-head type-clause)))
-
-(defun return-type (type-clause)
-  (second type-clause))
-
-(defun clause-head (clause) (first clause))
-(defun clause-body (clause) (second clause))
-(defun clause-name (clause)
+(defun definition-name (clause)
   (if (atom (car clause))
       (car clause)
       (caar clause)))
-;; function parameters if any
-(defun clause-pattern (clause) (cdar clause))
 
-
-
-(defun type-specification? (clause)
-  "Tests if the given clause includes type specification"
-  (and (not (null (rest (first clause))))
-       (eql (second (first clause)) (intern "!!"))))
+(defun definition (clauses)
+  (if (and (null (cdr clauses)) (atom (caar clauses)))
+      (cons 'defparameter (var-value clauses))
+      (cons 'defun (var-args-value clauses))))
 
 
 (defun var-value (clauses)
   `(,(caar clauses) ,(cadar clauses)))
 
-
-
-(defun var-parms-value (clauses)
-  (let ((cl1 (car clauses))
-	(cls (cdr clauses)))
-    (if (type-specification? cl1)
-	(let ((arg-types (arg-types cl1))
-	      (return-type (return-type cl1))
-	      (pattern (clause-pattern (car cls))))
-	  ;; type spec included
-	  (if (null (cdr cls)) ;single clause
-	     `(,(clause-name (car cls)) ,(clause-pattern (car cls))
-		(declare (optimize (speed 3) (safety 0)))
-		(declare ,@(mapcar #'list arg-types pattern))
-		(the ,return-type ,(let-labels-body (clause-body (car cls)))))
-	     (let ((params (params (car cls))))
-	       `(,(caar (car cls)) ,params
-		  (declare (optimize (speed 3) (safety 0)))
-		  (declare ,@(mapcar #'list arg-types params))
-		  (the ,return-type
-		       ,(match-params-type-specification
-			 arg-types
-			 (function-body-for-multiple-clauses cls params)))))))
-	;; no type spec
-	(if (null cls)
-	    `(,(clause-name cl1) ,(clause-pattern cl1)
-	       ,(let-labels-body (clause-body cl1)))
-	    (let ((params (params cl1)))
-	      `(,(clause-name cl1) ,params
-		 ,(function-body-for-multiple-clauses clauses params)))))))
-
-
-
-(defun match-params-type-specification (arg-types match-form)
-  "As for multiple clause definitions parameters for the definitions are generated
-   So the parameters for each match clauses are not type specified"
-  (list* (first match-form) (second match-form)
-	 (loop for c in (cddr match-form) collect
-	      (let ((pairs
-		     ;; ex) pairs:: ((fixnum x) (list y)) 
-		     (if (null (cdr arg-types)) ; a single parmeter case
-			 (when (variable-p (first c))
-			   (list (list (first arg-types) (first c))))
-			 (mapcan (lambda (a p)
-				   (when (variable-p p)
-				     (list (list a p))))
-				 arg-types
-				 ;; remove 'list' tag
-				 (cdr (first c))))))
-		(if (null pairs)
-		    c
-		    (list (first c)
-			  `(declare ,@pairs)
-			  (second c)))))))
-
+(defun var-args-value (clauses)
+  (let* ((cl1 (car clauses)))
+    (if (null (cdr clauses))
+	(if (not (every #'variable-p (pattern cl1)))
+	    (error "Single clause definition must not have any constant in a pattern ~A"
+		   cl1)
+	    `(,(caar cl1) ,(cdar cl1)
+	       ,(let-labels-body (second cl1))))
+	(let ((params (params cl1)))
+	  `(,(caar cl1) ,params
+	     ,(function-body-for-multiple-clauses clauses params))))))
 
 (defun function-body-for-multiple-clauses (clauses params)
-  (if (null (cdr params))
-      ;; a single parameter case
-      ;; Somtimes, it may not be a great lift for performance
-      ;; but easier to read when macroexpanded at least
-      `(match ,(car params)
-	 ,@(mapcar #'(lambda (c)
-		       (list (car (clause-pattern c))
-			     (let-labels-body (second c))))
-		   clauses))
-      `(match (list ,@params)
-	 ,@(mapcar #'(lambda (c)
-		       (list (cons 'list (clause-pattern c))
-			     (let-labels-body (second c))))
-		   clauses))))
-
+  `(match (list ,@params)
+     ,@(mapcar #'(lambda (c)
+		   (list (cons 'list (pattern c))
+			 (let-labels-body (second c))))
+	       clauses)))
 
 (defun params (clause)
-  "Generate symbols as many as function parameters"
   (let ((result '()))
-    (dotimes (i (length (clause-pattern clause)))
+    (dotimes (i (length (pattern clause)))
       (push (gensym) result))
     result))
 
 (defun variable-p (x)
   (and (symbolp x) (not (eq x nil)) (not (eq x t))))
+
+(defun pattern (clause) (cdar clause))
 
 (defun let-labels-body (clause-value)
   (if (contains-where-p clause-value)
@@ -143,12 +69,14 @@
 	     ;; let binds come before labels binds automatically.
 	     (let-binds (remove-if #'function-clause-p internal-clauses))
 	     (labels-binds (remove-if-not #'function-clause-p internal-clauses)))
-	;; Have faith in CL compilers. They handle when let-binds or labels-binds are null
-	`(let* ,let-binds
-	   (labels ,(mapcar #'var-parms-value (group-by-definition-name labels-binds))
-	     ,(car clause-value))))
+	(if (null let-binds)
+	    `(labels ,(mapcar #'var-args-value (group-by-definition-name labels-binds))
+	       ,(car clause-value))
+	    `(let ,let-binds
+	       (labels ,(mapcar #'var-args-value (group-by-definition-name labels-binds))
+		 ,(car clause-value)))))
       clause-value))
-      
+
 (defun contains-where-p (clause-value)
   (and (consp clause-value)
        (consp (first clause-value))
@@ -156,6 +84,5 @@
 
 (defun function-clause-p (clause)
   (consp (car clause)))
-
 
 

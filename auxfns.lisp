@@ -28,6 +28,8 @@
 	   :string->file
 	   :numbering
 
+	   :print-tree
+
 	   
 	   
 	   ))
@@ -242,7 +244,12 @@
 
 
 
-
+(defun print-tree (tree &optional (offset 0))
+  (loop for node in tree do
+       (terpri)
+       (loop repeat offset do (princ " |"))
+       (format t "-~a" (car node))
+       (print-tree (cdr node) (1+ offset))))
 
 
 
