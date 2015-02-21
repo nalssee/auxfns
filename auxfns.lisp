@@ -1,18 +1,12 @@
 (defpackage :auxfns
   (:use :cl)
   (:export :with-gensyms
-	   :once-only
 	   :nlet
-
 	   :range
-	   
 	   :lcomp
-
 	   :alambda
 	   :rec
-
 	   :mappend
-
 	   :memoize
 	   :clear-memoize
 	   :curry
@@ -29,16 +23,10 @@
 	   :numbering
 
 	   :print-tree
-
-	   
-	   
 	   ))
 
 
-
 (in-package :auxfns)
-
-
 
 (defmacro alambda (parms &body body)
   `(labels ((rec ,parms ,@body))
@@ -47,21 +35,6 @@
 (defmacro with-gensyms ((&rest names) &body body)
   `(let ,(loop for n in names collect `(,n (gensym)))
      ,@body))
-
-;; (defmacro once-only ((&rest names) &body body)
-;;   (let ((gensyms (loop for n in names collect (gensym (string n)))))
-;;     `(list 'let
-;;            (list ,@(loop for g in gensyms for n in names collect `(list ',g ,n)))
-;;            (let ,(loop for n in names for g in gensyms collect `(,n ',g))
-;;              ,@body))))
-
-(defmacro once-only ((&rest names) &body body)
-  (let ((gensyms (loop repeat (length names) collect (gensym))))
-    `(let (,@(loop for g in gensyms collect `(,g (gensym))))
-      `(let (,,@(loop for g in gensyms for n in names collect ``(,,g ,,n)))
-        ,(let (,@(loop for n in names for g in gensyms collect `(,n ,g)))
-           ,@body)))))
-
 
 (defmacro nlet (name pairs &body body)
   `(labels ((,name ,(mapcar #'first pairs) ,@body))
@@ -75,12 +48,8 @@
   `(defmacro ,short (&rest args)
      `(,',long ,@args)))
 
-;; (defmacro abbrev (short long)
-;;   (list 'defmacro short (list '&rest 'args)
-;; 	(list 'cons (list 'quote long) 'args)))
 
 
-;;=========================================================
 
 (defun memo (fn name key test)
   (let ((table (make-hash-table :test test)))
@@ -106,11 +75,6 @@
 (defun curry (fn &rest args)
   (lambda (&rest more-args)
     (apply fn (append args more-args))))
-
-
-
-
-
 
 (defmacro aif (test-form then-form &optional else-form)
   `(let ((it ,test-form))
@@ -147,8 +111,6 @@
 
 
 
-
-
 ;; 
 ;; (group '(1 2 3 4 5) :n 2)
 (defun group (xs &key (test #'eql) (key #'identity)
@@ -179,8 +141,6 @@
 	     (loop for i from len-1 downto cnt do
 		  (push (svref vresult i) result))
 	     result))))))
-
-
 
 
 ;; whole file to a string
@@ -241,21 +201,12 @@
 	 (nreverse ,accum)))))
 
 
-
-
-
 (defun print-tree (tree &optional (offset 0))
   (loop for node in tree do
        (terpri)
        (loop repeat offset do (princ " |"))
        (format t "-~a" (car node))
        (print-tree (cdr node) (1+ offset))))
-
-
-
-
-
-
 
 
 

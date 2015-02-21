@@ -44,7 +44,6 @@
 (defun empty-pipe-p (x)
   (eq x empty-pipe))
 
-
 (defun tail (pipe)
   (if (functionp (rest pipe))
       (setf (rest pipe) (funcall (rest pipe)))
@@ -55,17 +54,11 @@
 	((= i 0) (head pipe))
 	(t (pipe-elt (tail pipe) (1- i)))))
 
-
-
-
-
 (defun pipe-filter (pred pipe)
   (if (funcall pred (head pipe))
       (make-pipe (head pipe)
                  (pipe-filter pred (tail pipe)))
       (pipe-filter pred (tail pipe))))
-
-
 
 (defun pipe-map (fn &rest pipes)
   (if (empty-pipe-p (first pipes))
@@ -75,7 +68,6 @@
        (apply #'pipe-map
 	      (cons fn (mapcar #'tail pipes))))))
 
-
 (defun pipe-append (&rest xs)
   (cond ((null xs) empty-pipe)
 	((empty-pipe-p (car xs))
@@ -84,15 +76,4 @@
 		      (apply #'pipe-append
 			     (tail (car xs))
 			     (cdr xs))))))
-
-
-;; (defun mappend-pipe (fn pipe)
-;;   (if (eq pipe empty-pipe)
-;;       empty-pipe
-;;       (let ((x (funcall fn (head pipe))))
-;;         (make-pipe (head x)
-;;                    (append-pipes (tail x)
-;;                                  (mappend-pipe
-;;                                   fn (tail pipe)))))))
-
 

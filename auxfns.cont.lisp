@@ -20,7 +20,6 @@
 (in-package :auxfns.cont)
 
 
-
 ;;===========================================================
 ;;; Continuation Passing Macro
 ;;===========================================================
@@ -79,7 +78,6 @@
       '(backtrack)))
 
 
-
 ;; choose-bind
 (defmacro amb-bind (var choices &body body)
   `(ab #'(lambda (,var) ,@body) ,choices))
@@ -111,14 +109,11 @@
 	   (only-when ,@(cdr exps))
 	   (amb))))
 
-
-
 ;; fail
 (defun backtrack ()
   (if *paths*
       (funcall (pop *paths*))
       failsym))
-
 
 (defmacro bag-of (expr)
   (with-gensyms (result x)

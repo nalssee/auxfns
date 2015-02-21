@@ -1,4 +1,5 @@
 ;; profiling from PAIP
+;; No need for this if you are using SBCL
 
 (defpackage :auxfns.pf
   (:use :cl)
@@ -17,9 +18,7 @@
       (multiple-value-prog1 (apply fn args)
 	(profile-exit fn-name))))
 
-
 (defun profile-count (fn-name) (get fn-name 'profile-count))
-
 
 (defvar *profiled-functions* nil
   "Function names that are currently profiled")

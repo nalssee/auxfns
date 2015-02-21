@@ -4,20 +4,12 @@
 
 (in-package :auxfns.def)
 
-;; 05/28/2014
-;; Syntactic sugar for pattern matching based definition
-;; See the below of this file for example
-
 (defmacro def (&body sexps)
   `(progn ,@(mapcar
 	     ;; form defparameter or defun
 	     #'definition
-	     (group-by-definition-name (group sexps :n 2)))))
-
-
-(defun group-by-definition-name (clauses)
-  (group clauses
-	 :key #'definition-name))
+	     (group (group sexps :n 2)
+		    :key #'definition-name))))
 
 (defun definition-name (clause)
   (if (atom (car clause))
@@ -28,7 +20,6 @@
   (if (and (null (cdr clauses)) (atom (caar clauses)))
       (cons 'defparameter (var-value clauses))
       (cons 'defun (var-args-value clauses))))
-
 
 (defun var-value (clauses)
   `(,(caar clauses) ,(cadar clauses)))
@@ -64,23 +55,19 @@
 (defun pattern (clause) (cdar clause))
 
 (defun let-labels-body (clause-value)
-  (if (contains-where-p clause-value)
-      (let* ((internal-clauses (group (cddr clause-value) :n 2))
+  (if (and (consp clause-value)
+	   (eql (first clause-value) (intern "WITH-LOCAL-DEFINITIONS")))
+      (let* ((internal-clauses (group (second clause-value) :n 2))
 	     ;; let binds come before labels binds automatically.
 	     (let-binds (remove-if #'function-clause-p internal-clauses))
 	     (labels-binds (remove-if-not #'function-clause-p internal-clauses)))
 	(if (null let-binds)
 	    `(labels ,(mapcar #'var-args-value (group-by-definition-name labels-binds))
-	       ,(car clause-value))
+	       ,@(cddr clause-value))
 	    `(let ,let-binds
 	       (labels ,(mapcar #'var-args-value (group-by-definition-name labels-binds))
-		 ,(car clause-value)))))
+		 ,@(cddr clause-value)))))
       clause-value))
-
-(defun contains-where-p (clause-value)
-  (and (consp clause-value)
-       (consp (first clause-value))
-       (find (intern "WHERE") clause-value)))
 
 (defun function-clause-p (clause)
   (consp (car clause)))
