@@ -7,6 +7,7 @@
 (defparameter ones (make-pipe 1 ones))
 
 (defparameter integers (make-pipe 0 (pipe-map #'+ ones integers)))
+
 (defparameter fibs
   (make-pipe 0
 	     (make-pipe 1
