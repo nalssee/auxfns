@@ -49,8 +49,6 @@
      `(,',long ,@args)))
 
 
-
-
 (defun memo (fn name key test)
   (let ((table (make-hash-table :test test)))
     (setf (get name 'memo) table)
@@ -108,7 +106,6 @@
            (if (or ,val ,win)
                (let ((it ,val)) ,@(cdr cl1))
                (acond2 ,@(cdr clauses)))))))
-
 
 
 ;; 
@@ -207,6 +204,4 @@
        (loop repeat offset do (princ " |"))
        (format t "-~a" (car node))
        (print-tree (cdr node) (1+ offset))))
-
-
 

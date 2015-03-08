@@ -4,72 +4,160 @@
 
 (in-package :auxfns.def)
 
-(defmacro def (&body sexps)
+(defmacro def (&body exps)
   `(progn ,@(mapcar
 	     ;; form defparameter or defun
-	     #'definition
-	     (group (group sexps :n 2)
-		    :key #'definition-name))))
+	     #'form-definition
+	     (group (group exps :n 2)
+		    :key #'clause-name))))
 
-(defun definition-name (clause)
-  (if (atom (car clause))
-      (car clause)
-      (caar clause)))
+;; Data abstractions
+(defun clause-head (clause) (first clause))
+(defun clause-body (clause) (second clause))
+(defun clause-name (clause)
+  (if (atom (clause-head clause)) ; parameter def
+      (clause-head clause)
+      (first (clause-head clause))))
 
-(defun definition (clauses)
-  (if (and (null (cdr clauses)) (atom (caar clauses)))
-      (cons 'defparameter (var-value clauses))
-      (cons 'defun (var-args-value clauses))))
+(defun type-spec-clause-p (clause)
+  "Tests if the given clause specifies types"
+  (and (listp (clause-head clause))
+       (<= 2 (length (clause-head clause)))
+       (eql (second (clause-head clause)) (intern "!!"))))
 
-(defun var-value (clauses)
-  `(,(caar clauses) ,(cadar clauses)))
+(defun clause-parameters (clause)
+  (rest (clause-head clause)))
 
-(defun var-args-value (clauses)
-  (let* ((cl1 (car clauses)))
-    (if (null (cdr clauses))
-	(if (not (every #'variable-p (pattern cl1)))
-	    (error "Single clause definition must not have any constant in a pattern ~A"
-		   cl1)
-	    `(,(caar cl1) ,(cdar cl1)
-	       ,(let-labels-body (second cl1))))
-	(let ((params (params cl1)))
-	  `(,(caar cl1) ,params
-	     ,(function-body-for-multiple-clauses clauses params))))))
+(defun clause-parameter-types (type-spec-clause)
+  (cddr (clause-head type-spec-clause)))
 
-(defun function-body-for-multiple-clauses (clauses params)
-  `(match (list ,@params)
-     ,@(mapcar #'(lambda (c)
-		   (list (cons 'list (pattern c))
-			 (let-labels-body (second c))))
-	       clauses)))
+(defun clause-return-type (type-spec-clause)
+  (clause-body type-spec-clause))
 
-(defun params (clause)
-  (let ((result '()))
-    (dotimes (i (length (pattern clause)))
-      (push (gensym) result))
-    result))
+;; make a list of gensyms for paramters
+(defun make-parameters (clause)
+  (loop repeat (1- (length (clause-head clause))) collect (gensym)))
 
-(defun variable-p (x)
-  (and (symbolp x) (not (eq x nil)) (not (eq x t))))
+(defun variable-pattern-p (x)
+  (and (atom x) (symbolp x)
+       (not (eql x t)) (not (eql x nil))))
 
-(defun pattern (clause) (cdar clause))
+(defun variable-pattern-only-p (parameters)
+  (loop for p in parameters always (variable-pattern-p p)))
 
-(defun let-labels-body (clause-value)
-  (if (and (consp clause-value)
-	   (eql (first clause-value) (intern "WITH-LOCAL-DEFINITIONS")))
-      (let* ((internal-clauses (group (second clause-value) :n 2))
-	     ;; let binds come before labels binds automatically.
-	     (let-binds (remove-if #'function-clause-p internal-clauses))
-	     (labels-binds (remove-if-not #'function-clause-p internal-clauses)))
-	(if (null let-binds)
-	    `(labels ,(mapcar #'var-args-value (group-by-definition-name labels-binds))
-	       ,@(cddr clause-value))
-	    `(let ,let-binds
-	       (labels ,(mapcar #'var-args-value (group-by-definition-name labels-binds))
-		 ,@(cddr clause-value)))))
-      clause-value))
 
-(defun function-clause-p (clause)
-  (consp (car clause)))
+
+;;;
+(defvar *def-dispatch-table* (make-hash-table))
+
+(defun register-def (name fn)
+  (setf (gethash name *def-dispatch-table*) fn))
+
+(defun form-definition (clauses)
+  (if (and (null (rest clauses)) (atom (clause-head (first clauses))))
+      (let ((clause (first clauses)))
+	`(defparameter ,(clause-name clause) ,(clause-body clause)))
+      `(defun ,@(funcall (gethash (analyze-clauses clauses) *def-dispatch-table*)
+			 clauses))))
+
+;; 1 clause, no type spec, no pattern variables
+(register-def
+ :simple-form
+ #'(lambda (clauses)
+     (let ((cl1 (first clauses)))
+       `(,(clause-name cl1) ,(clause-parameters cl1)
+	  ,(handle-local-definitions (clause-body cl1))))))
+
+;; requires match form (multiple clauses or pattern variable)
+;; no type spec 
+(register-def
+ :match-form
+ #'(lambda (clauses)
+     (let* ((cl1 (first clauses))
+	    (params (make-parameters cl1)))
+       `(,(clause-name cl1) ,params
+	  (match (list ,@params)
+	    ,@(loop for (pattern value) in clauses collect
+		   (list `(list ,@(rest pattern)) (handle-local-definitions value))))))))
+
+;; 1 body clause, type spec, no pattern variables
+(register-def
+ :simple-form-type
+ #'(lambda (clauses)
+     (destructuring-bind (tsc cl1) clauses
+       `(,(clause-name cl1) ,(clause-parameters cl1)
+	  ,(form-declaration tsc (clause-parameters cl1))
+	  (the ,(clause-return-type tsc) ,(handle-local-definitions
+				    (clause-body cl1)))))))
+
+
+;; Hardest part
+;; requires match form with type spec
+(register-def
+ :match-form-type
+ #'(lambda (clauses)
+     (destructuring-bind (tsc cl1 &rest cls) clauses
+       (declare (ignore cls))
+       (let ((params (make-parameters cl1)))
+	 `(,(clause-name cl1) ,params
+	    ,(form-declaration tsc params)
+	    (match (list ,@params)
+	      ,@(loop for (pattern value) in (rest clauses) collect
+		     `((list ,@(rest pattern))
+		       ,@(maybe-form-declaration tsc (rest pattern))
+		       (the ,(clause-return-type tsc) ,(handle-local-definitions
+						 value))))))))))
+
+
+(defun handle-local-definitions (exp)
+  (if (and (listp exp) (eql (first exp) (intern "WITH-LOCAL-DEFINITIONS")))
+      (let* ((clauses (group (second exp) :n 2))
+	     ;; todo:
+	     ;; Maybe I should restrict let bindings come before labels bindings
+	     (let-clauses (remove-if
+			   #'(lambda (c) (listp (clause-head c))) clauses))
+	     (labels-clauses (remove-if-not
+			      #'(lambda (c) (listp (clause-head c))) clauses))
+	     (labels-form
+	      `(labels
+		   ,(loop for cls in (group labels-clauses :key #'clause-name) collect
+			 (funcall (gethash (analyze-clauses cls) *def-dispatch-table*) cls))
+		 ,@(cddr exp))))
+	;; At least one labels-bindings exists	
+	;; 	(assert (not (null labels-clauses)))
+	(if (null let-clauses)
+	    labels-form
+	    `(let ,let-clauses
+	       ,labels-form)))
+      exp))
+
+
+(defun analyze-clauses (clauses)
+  (destructuring-bind (cl1 &rest cls) clauses
+    (cond ((and (null cls)
+		(variable-pattern-only-p (clause-parameters cl1)))
+	   :simple-form)
+	  ;; todo, error case
+	  ;; spec clause only definition may need to be handled as well
+	  ((type-spec-clause-p cl1)
+	   (if (and (null (rest cls))
+		    (variable-pattern-only-p (clause-parameters (first cls))))
+	       :simple-form-type
+	       :match-form-type))
+	  (t :match-form))))
+
+(defun form-declaration (type-spec-clause parameters)
+  `(declare (optimize (speed 3) (safety 0))
+	    ,@(loop for type in (clause-parameter-types type-spec-clause)
+		   for param in parameters collect
+		   `(type ,type ,param))))
+
+(defun maybe-form-declaration (type-spec-clause parameters)
+  (let ((types (loop for type in (clause-parameter-types type-spec-clause)
+		  for param in parameters when (variable-pattern-p param)
+		  collect `(type ,type ,param))))
+    (when types
+      `((declare ,@types)))))
+
 
 
